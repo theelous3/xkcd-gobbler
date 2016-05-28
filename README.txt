@@ -11,7 +11,8 @@ To download an individual comic, use the "i:" tag followed by a comic number "12
     i: 1234
 
 Advanced:
-  You will be prompted to select how many coroutines you would like to run at once. Leave blank if you are unsure.
+  You will be prompted to select how many coroutines you would like to run at once. 
+  Leave blank if you are unsure.
   You may select any value above 1. The upper limit depends on your operating system.
   
 Dependancies:
