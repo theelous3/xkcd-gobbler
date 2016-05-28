@@ -64,6 +64,15 @@ class Scraper:
                                                                 flush=True,
                                                                 end ='')
 
+    def logger(self):
+        with open('xkcd_log.txt', 'w') as logfile:
+            logfile.write('Skipped: \n')
+            for url in self.skipped_list:
+                logfile.write(url + '\n')
+            logfile.write('Failed: \n')
+            for url in self.failed_list:
+                logfile.write(url + '\n')
+
     
     
     def get_comic_count(self):
@@ -78,6 +87,10 @@ class Scraper:
     
     
     def main(self):
+    #   Gets a list of urls and the latest comic number from get_comic_content()
+    #   Gets user input from user, and configures the url_list to match the user's prefs.
+    #   Calls process_director() to begin comic fetching.
+    #   If there are 
         latest_data = self.get_comic_count()
         last_comic, url_list = latest_data
         
@@ -89,9 +102,6 @@ class Scraper:
         usr_range = input('Which of the {} comic(s) would you like to download?\n'.format(last_comic))
         
         print()
-        print('Checking/Creating "Comics" directory...')
-
-        os.makedirs('Comics', exist_ok=True)
 
         choice_type, choice_value = usr_range.split(':')
         if choice_type.lower() == 'r':
@@ -102,27 +112,31 @@ class Scraper:
             url_list = [url_list[int(n)-1] for n in choice_value]
         elif choice_type.lower() == 'i':
             url_list = [url_list[int(choice_value)-1]]
-            print(url_list)
+
+        print('Checking/Creating "Comics" directory...')
+        os.makedirs('Comics', exist_ok=True)
+        
         try:
-            u_r_concur = int(input("How many downloads would you like concurrently? (Max: 255)\n"))
-            print('Using {} coroutine(s)').format(str(u_r_concur))
+            usr_concur = int(input("How many downloads would you like concurrently? (Max: 255)\n"))
+            print('Using {} coroutine(s)'.format(str(usr_concur)))
             print('Fetching comics...')
-            self.process_director(url_list, u_r_concur)
+            self.process_director(url_list, usr_concur)
         except ValueError:
             print('Using default coroutines.')
             print('Fetching comics...')
-        
             self.process_director(url_list)
 
-        if self.failed_list: 
-            print('Failed:')
-            for i in self.failed_list:
-                print(i)
-        if self.skipped_list:
-            print('Skipped:')
-            for i in self.skipped_list:
-                print(i)
-            print()
+        print()
+        print('Fetch Complete...')
+
+        if self.failed_list or self.skipped_list:
+            log_input = input('There were skipped/failed attempts. Would you like a log? Y/N \n')
+            if 'y' in log_input.lower():
+                self.logger()
+            else:
+                pass
+        print('Exiting...')
+
 
 if __name__ == "__main__":
     s = Scraper()
