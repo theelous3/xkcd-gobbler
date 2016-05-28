@@ -14,13 +14,14 @@ class Scraper:
         self.success = 0
         self.failure = 0
         self.skipped = 0
+        self.failed_list = []
+        self.skipped_list = []
 
-    def process_director(self, threads, url_list):
+    def process_director(self, url_list, threads=50):
         pool = eventlet.GreenPool(threads)
         for comic_url in pool.imap(self.worker, url_list):
             pass
         print()
-    
     
     def worker(self, comic_url):
         r = requests.get(comic_url)
@@ -33,10 +34,13 @@ class Scraper:
                 if self.save_image(img_url):
                     self.success += 1
                 else:
+                    self.failed_list.append(img_url)
                     self.failure += 1
             else:
+                self.skipped_list.append(img_url)
                 self.skipped += 1
         except AttributeError:
+            self.skipped_list.append(img_url)
             self.skipped += 1
         self.terminal_knowledge()
 
@@ -69,7 +73,7 @@ class Scraper:
         return (latest_comic_num, url_list)
     
     
-    def main(self):
+    def get_parameters(self):
         latest_data = self.get_comic_count()
         comics_available, url_list = latest_data[0], latest_data[1]
         
@@ -77,9 +81,9 @@ class Scraper:
         print('  Range-      "r: 50-100"')
         print('  Multi-      "m: 41,154,1002"')
         print('  Individual- "i: {}"\n'.format(comics_available))
-        user_requested_range = input('Which of the {} comic(s) would you like to download?'.format(comics_available))
-        print()
-        u_r_concur = int(input("How many downloads would you like concurrently? (Max: 255)\n"))
+
+        user_requested_range = input('Which of the {} comic(s) would you like to download?\n'.format(comics_available))
+        
         print()
         print('Checking/Creating "Comics" directory...')
 
@@ -95,15 +99,28 @@ class Scraper:
         elif choice_type.lower() == 'i':
             url_list = [url_list[int(choice_value)-1]]
             print(url_list)
-
-        print('Fetching comics...')
+        try:
+            u_r_concur = int(input("How many downloads would you like concurrently? (Max: 255)\n"))
+            print('Using {} coroutine(s)').format(str(u_r_concur))
+            print('Fetching comics...')
+            self.process_director(url_list, u_r_concur)
+        except ValueError:
+            print('Using default coroutines.')
+            print('Fetching comics...')
         
-        self.process_director(u_r_concur, url_list)
+            self.process_director(url_list)
 
-
-
+        if self.failed_list: 
+            print('Failed:')
+            for i in self.failed_list:
+                print(i)
+        if self.skipped_list:
+            print('Skipped:')    
+            for i in self.skipped_list:
+                print(i)
+            print()
 
 if __name__ == "__main__":
     s = Scraper()
-    s.main()
+    s.get_parameters()
     
