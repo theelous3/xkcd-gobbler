@@ -1,11 +1,11 @@
 import sys
 import os
+import re
 import eventlet
 eventlet.monkey_patch()
 from bs4 import BeautifulSoup
 
 import requests
-import re
 
 
 class Scraper:
@@ -16,48 +16,47 @@ class Scraper:
         self.skipped = 0
         self.failed_list = []
         self.skipped_list = []
+        self.tracebacks = []
 
     def process_director(self, url_list, threads=50):
+    #   points this way and that, until the work is done
         pool = eventlet.GreenPool(threads)
         for comic_url in pool.imap(self.worker, url_list):
             pass
         print()
     
     def worker(self, comic_url):
+    #   worker function that runs in coroutines to get image url from comic page
+    #   pre-existing files, exceptions and sucesses increment stats
         r = requests.get(comic_url)
         rc = r.content
-        soup = BeautifulSoup(rc, "html.parser")
+        soup = BeautifulSoup(rc, 'html.parser')
     
         try:
             img_url = soup.find('div', {'id':'comic'}).img['src']
-            if not os.path.isfile(os.path.join('Comics', img_url.split('/')[4])):
-                if self.save_image(img_url):
-                    self.success += 1
-                else:
-                    self.failed_list.append(img_url)
-                    self.failure += 1
-            else:
-                self.skipped_list.append(img_url)
-                self.skipped += 1
         except AttributeError:
             self.skipped_list.append(img_url)
             self.skipped += 1
+        else:
+            image = requests.get('http:' + img_url, stream=True)
+            filepath = os.path.join('Comics', img_url.split('/')[4])
+            if os.path.isfile(filepath):
+                self.skipped_list.append(img_url)
+                self.skipped += 1
+            else:
+                try:
+                    with open(filepath, 'wb') as image_file:
+                        for bytechunk in image.iter_content():
+                            image_file.write(bytechunk)
+                    self.success += 1
+                except:
+                    self.tracebacks.append(traceback.print_exc())
+                    self.failed_list.append(img_url)
+                    self.failure += 1
         self.terminal_knowledge()
 
-    def save_image(self, img_url):
-        image = requests.get('http:' + img_url, stream=True)
-
-        try:
-            with open(os.path.join('Comics', img_url.split('/')[4]), 'wb') as image_file:
-                for bytechunk in image.iter_content():
-                    image_file.write(bytechunk)
-            return True
-        except Exception:
-            return False
-
-    
-    
     def terminal_knowledge(self):
+    #   provides constant feedback on fetch status.
         print('\r Sucessful:{} Failed:{} Skipped:{}'.format(self.success,
                                                             self.failure, 
                                                             self.skipped), 
@@ -65,6 +64,7 @@ class Scraper:
                                                                 end ='')
 
     def logger(self):
+    #   logz
         with open('xkcd_log.txt', 'w') as logfile:
             logfile.write('Skipped: \n')
             for url in self.skipped_list:
@@ -72,10 +72,13 @@ class Scraper:
             logfile.write('Failed: \n')
             for url in self.failed_list:
                 logfile.write(url + '\n')
-
-    
+            logfile.write('Traceback(s): \n')
+            for trace in self.tracebacks:
+                logfile.write(trace + '\n')
     
     def get_comic_count(self):
+    #   gets total number of comics from xkcd homepage.
+    #   builds and returns list of all xkcd urls.
         r = requests.get('http://xkcd.com/')
         rc = r.content
         soup = BeautifulSoup(rc, "html.parser")
@@ -85,12 +88,11 @@ class Scraper:
         url_list = [('http://xkcd.com/' + str(i)) for i in range(1, int(last_comic)+1)]
         return (last_comic, url_list)
     
-    
     def main(self):
-    #   Gets a list of urls and the latest comic number from get_comic_content()
-    #   Gets user input from user, and configures the url_list to match the user's prefs.
-    #   Calls process_director() to begin comic fetching.
-    #   If there are 
+    #   gets a list of urls and the latest comic number from get_comic_content().
+    #   gets user input from user, and configures the url_list to match the user's prefs.
+    #   calls process_director() to begin comic fetching.
+    #   if there are skipped/failed fetches/saves, give option to log.
         latest_data = self.get_comic_count()
         last_comic, url_list = latest_data
         
@@ -115,7 +117,7 @@ class Scraper:
 
         print('Checking/Creating "Comics" directory...')
         os.makedirs('Comics', exist_ok=True)
-        
+
         try:
             usr_concur = int(input("How many downloads would you like concurrently? (Max: 255)\n"))
             print('Using {} coroutine(s)'.format(str(usr_concur)))
